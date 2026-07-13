@@ -88,18 +88,22 @@ npm install svelte   # または vue（使う方だけ。optional peer）
 
 ## 新規プロジェクトを作る（CLI）
 
-`bridgeway init` が、選んだフレームワークに**配線済みのスタータ**を生成します。
+`bridgeway init` が、選んだフレームワーク・言語に**配線済みのスタータ**を生成します。
 
 ```bash
 npx bridgeway init my-app
 #  フレームワークを選択:  1) svelte  2) vue
-#  → my-app/ に App.(svelte|js) / main.js / build.mjs / index.html を生成
+#  言語を選択:            1) js      2) ts
+#  → my-app/ に App.(svelte|js|ts) / main.(js|ts) / build.mjs / index.html を生成
+#     ts を選ぶと tsconfig.json と型宣言 bridge-env.d.ts も同梱
 
 # 非対話でも指定可
-npx bridgeway init my-app --framework vue
+npx bridgeway init my-app --framework vue --lang ts
 ```
 
-生成される `main.js` は `$$ / state / mount` で共通。**違いはエンジン選択（Vueなら `useEngine(vueEngine)` の1行）と部品の書式だけ**。あとで別ディレクトリに逆のフレームワークで作り直せば、利用者コードはほぼそのまま移せます。
+生成される `main.(js|ts)` は `$$ / state / mount` で共通。**違いはエンジン選択（Vueなら `useEngine(vueEngine)` の1行）と部品の書式・言語だけ**。あとで別ディレクトリに逆のフレームワークで作り直せば、利用者コードはほぼそのまま移せます。
+
+> TypeScript 版は、bridge 本体がまだ型定義を同梱していないため、生成プロジェクトに暫定のアンビエント型宣言（`bridge-env.d.ts`）を置いて型を効かせています。本体が `.d.ts` を配布し始めたら、このファイルは削除して構いません。
 
 ---
 
