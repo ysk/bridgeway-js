@@ -1,6 +1,6 @@
 {
   "name": "bridgey",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "jQueryの書き味で本物のモダンフレームワーク(Svelte/Vue)を、限りなく楽に。エンジン差し替え式。",
   "type": "module",
   "main": "dist/bridgey.esm.js",
