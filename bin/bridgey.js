@@ -1,33 +1,33 @@
 #!/usr/bin/env node
-// bin/bridge.js — bridge の CLI。
+// bin/bridgey.js — bridgey の CLI。
 //
 // 究極ビジョンの入口:
-//   npm install bridge
-//   npx bridge init my-app
+//   npm install bridgey
+//   npx brg init my-app
 //     ? フレームワークを選択:  ❯ svelte   vue
 //     ? 言語を選択:            ❯ js       ts
 //   → 選んだエンジン + 言語に配線済みのスタータ一式を生成する。
 //
 // 依存ゼロ(Node標準のみ)。対話選択、または --framework / --lang で非対話。
 //
-// 生成コードは常に公開パッケージ名 "bridge" を import する(=そのまま npm install で解決)。
-//   import { $$, state, mount, useEngine } from "bridge";
-//   import { svelteEngine } from "bridge/engines/svelte.js";  // or vue
+// 生成コードは常に公開パッケージ名 "bridgey" を import する(=そのまま npm install で解決)。
+//   import { $$, state, mount, useEngine } from "bridgey";
+//   import { svelteEngine } from "bridgey/engines/svelte.js";  // or vue
 //
 // 使い方:
-//   bridge init [dir] [--framework svelte|vue] [--lang js|ts] [--bridge-dep <spec>]
-//     dir           生成先(既定: bridge-app)
+//   brg init [dir] [--framework svelte|vue] [--lang js|ts] [--bridgey-dep <spec>]
+//     dir           生成先(省略時は対話で入力。既定 bridgey-app / "." で現在のフォルダに生成)
 //     --framework   省略時は対話選択
 //     --lang        省略時は対話選択(js|ts)
-//     --bridge-dep  生成package.jsonが依存するbridgeの指定(既定: "^1.0.0")。
+//     --bridgey-dep  生成package.jsonが依存するbridgeの指定(既定: "^1.0.0")。
 //                   未公開のローカル検証時は tgz への file: 指定も可
-//                   例) --bridge-dep "file:../bridge-1.0.0.tgz"
+//                   例) --bridgey-dep "file:../bridgey-1.0.0.tgz"
 //
 // エンジン・言語はプロジェクト作成時に一度だけ選ぶ(後から切り替える機能は持たない)。
 // 別の組み合わせを試すなら別プロジェクトを作る。利用者コード($$/state/mount)は共通。
 //
-// ※ TS を選ぶと bridge 本体のアンビエント型宣言(bridge-env.d.ts)と tsconfig.json も
-//    生成する。bridge 本体が型定義を同梱するまでのつなぎとして、これで型が効く。
+// ※ TS を選ぶと bridgey 本体のアンビエント型宣言(bridgey-env.d.ts)と tsconfig.json も
+//    生成する。bridgey 本体が型定義を同梱するまでのつなぎとして、これで型が効く。
 
 import { mkdir, writeFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -37,7 +37,7 @@ import { stdin, stdout } from "node:process";
 
 const FRAMEWORKS = ["svelte", "vue"];
 const LANGUAGES = ["js", "ts"];
-const PKG = "bridgeway"; // 公開パッケージ名
+const PKG = "bridgey"; // 公開パッケージ名
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -47,25 +47,30 @@ function parseArgs(argv) {
     else if (a.startsWith("--framework=")) args.framework = a.split("=")[1];
     else if (a === "--lang" || a === "-l") args.lang = argv[++i];
     else if (a.startsWith("--lang=")) args.lang = a.split("=")[1];
-    else if (a === "--bridge-dep") args.bridgeDep = argv[++i];
-    else if (a.startsWith("--bridge-dep=")) args.bridgeDep = a.split("=")[1];
+    else if (a === "--bridgey-dep") args.bridgeyDep = argv[++i];
+    else if (a.startsWith("--bridgey-dep=")) args.bridgeyDep = a.split("=")[1];
     else args._.push(a);
   }
   return args;
 }
 
 // 番号 or 名前で1つ選ばせる汎用プロンプト(既定は先頭)。
+// choices は文字列 or { value, label }。表示は label、戻り値は value(js/ts等の内部値)。
+// 入力は番号・value・label のいずれでも(大文字小文字問わず)受け付ける。
 // readline インターフェイスは呼び出し側で1つ作って使い回す(複数回 close すると
 // パイプ入力の stdin が EOF 扱いになり2問目以降がハングするため)。
 async function promptChoice(rl, label, choices) {
+  const norm = choices.map((c) => (typeof c === "string" ? { value: c, label: c } : c));
   stdout.write(`\n${label}:\n`);
-  choices.forEach((c, i) => stdout.write(`  ${i + 1}) ${c}\n`));
+  norm.forEach((c, i) => stdout.write(`  ${i + 1}) ${c.label}\n`));
   while (true) {
     const ans = (await rl.question("番号または名前 [1]: ")).trim() || "1";
-    const byNum = choices[Number(ans) - 1];
-    const pick = byNum || (choices.includes(ans) ? ans : null);
-    if (pick) return pick;
-    stdout.write(`  ↳ ${choices.join(" か ")} を選んでください\n`);
+    const lower = ans.toLowerCase();
+    const pick =
+      norm[Number(ans) - 1] ||
+      norm.find((c) => c.value.toLowerCase() === lower || c.label.toLowerCase() === lower);
+    if (pick) return pick.value;
+    stdout.write(`  ↳ ${norm.map((c) => c.label).join(" か ")} を選んでください\n`);
   }
 }
 
@@ -73,7 +78,7 @@ async function promptChoice(rl, label, choices) {
 // 生成物はどれも「利用者コードは $$/state/mount で共通、違いはエンジン選択・部品の書式・
 // 言語(js/ts)だけ」。ts では App/main の拡張子と型注釈、tsconfig と型宣言が加わる。
 
-function filesFor(framework, lang, name, bridgeDep) {
+function filesFor(framework, lang, name, bridgeyDep) {
   const isTs = lang === "ts";
   const entry = isTs ? "main.ts" : "main.js";
 
@@ -83,7 +88,7 @@ function filesFor(framework, lang, name, bridgeDep) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${name} — bridge.js (${framework} · ${lang})</title>
+  <title>${name} — bridgey (${framework} · ${lang})</title>
 </head>
 <body>
   <h1>${name} <small>engine: ${framework} · ${lang}</small></h1>
@@ -98,7 +103,7 @@ function filesFor(framework, lang, name, bridgeDep) {
 
   if (isTs) {
     common["tsconfig.json"] = tsconfigJson();
-    common["bridge-env.d.ts"] = envDts(framework);
+    common["bridgey-env.d.ts"] = envDts(framework);
   }
 
   if (framework === "svelte") {
@@ -107,7 +112,7 @@ function filesFor(framework, lang, name, bridgeDep) {
       "App.svelte": svelteApp(isTs),
       [entry]: svelteMain(name),
       "build.mjs": buildMjs("svelte", lang),
-      "package.json": pkgJson(name, "svelte", lang, bridgeDep, { svelte: "^4" }, svelteDevDeps(isTs)),
+      "package.json": pkgJson(name, "svelte", lang, bridgeyDep, { svelte: "^4" }, svelteDevDeps(isTs)),
     };
   }
 
@@ -117,7 +122,7 @@ function filesFor(framework, lang, name, bridgeDep) {
     [isTs ? "App.ts" : "App.js"]: vueApp(isTs),
     [entry]: vueMain(name, isTs),
     "build.mjs": buildMjs("vue", lang),
-    "package.json": pkgJson(name, "vue", lang, bridgeDep, { vue: "^3" }, vueDevDeps(isTs)),
+    "package.json": pkgJson(name, "vue", lang, bridgeyDep, { vue: "^3" }, vueDevDeps(isTs)),
   };
 }
 
@@ -136,12 +141,12 @@ function svelteApp(isTs) {
 <strong>{count}</strong>
 <button on:click={() => count++}>＋</button>
 <span>(2倍: {doubled})</span>
-{#if count >= 10}<p>🔥 10以上</p>{/if}
+{#if count >= 10}<p>10以上</p>{/if}
 `;
 }
 
 function svelteMain(name) {
-  // 型は bridge-env.d.ts(ts時)から効く。main の中身は js/ts で共通。
+  // 型は bridgey-env.d.ts(ts時)から効く。main の中身は js/ts で共通。
   return `// bridge本体はエンジン非依存。起動時に一度だけエンジンを選ぶ。
 import { $$, state, mount, useEngine } from "${PKG}";
 import { svelteEngine } from "${PKG}/engines/svelte.js";
@@ -151,7 +156,7 @@ useEngine(svelteEngine);
 
 const app = mount(App, { target: "#app", props: { name: "${name}" } });
 
-const log = state("mounted ✅");
+const log = state("mounted");
 $$("#log").bindText(log);
 $$("#reset").on("click", () => { app.set({ name: "world" }); log.value = "reset"; });
 `;
@@ -172,7 +177,7 @@ export default defineComponent({
     <strong>{{ count }}</strong>
     <button @click="count++">＋</button>
     <span>(2倍: {{ doubled }})</span>
-    <p v-if="count >= 10">🔥 10以上</p>
+    <p v-if="count >= 10">10以上</p>
   \`,
 });
 `;
@@ -187,7 +192,7 @@ export default defineComponent({
     <strong>{{ count }}</strong>
     <button @click="count++">＋</button>
     <span>(2倍: {{ doubled }})</span>
-    <p v-if="count >= 10">🔥 10以上</p>
+    <p v-if="count >= 10">10以上</p>
   \`,
 };
 `;
@@ -205,7 +210,7 @@ useEngine(vueEngine);
 
 const app = mount(App, { target: "#app", props: { name: "${name}" } });
 
-const log = state("mounted ✅");
+const log = state("mounted");
 $$("#log").bindText(log);
 $$("#reset").on("click", () => { app.set({ name: "world" }); log.value = "reset"; });
 `;
@@ -236,7 +241,7 @@ function vueDevDeps(isTs) {
   return isTs ? { ...base, ...TS_DEVDEPS } : base;
 }
 
-function pkgJson(name, framework, lang, bridgeDep, deps, devDeps) {
+function pkgJson(name, framework, lang, bridgeyDep, deps, devDeps) {
   return (
     JSON.stringify(
       {
@@ -244,9 +249,9 @@ function pkgJson(name, framework, lang, bridgeDep, deps, devDeps) {
         private: true,
         type: "module",
         scripts: { build: "node build.mjs" },
-        dependencies: { [PKG]: bridgeDep, ...deps }, // bridge本体 + 選んだFW
+        dependencies: { [PKG]: bridgeyDep, ...deps }, // bridge本体 + 選んだFW
         devDependencies: devDeps,
-        bridge: { framework, lang }, // 選択したエンジンと言語の記録
+        bridgey: { framework, lang }, // 選択したエンジンと言語の記録
       },
       null,
       2
@@ -361,7 +366,7 @@ function tsconfigJson() {
   );
 }
 
-// bridge 本体がまだ型定義を同梱していないためのアンビエント宣言。
+// bridgey 本体がまだ型定義を同梱していないためのアンビエント宣言。
 // (本体が .d.ts を配るようになったらこのファイルは不要になる)
 function envDts(framework) {
   const svelteModule =
@@ -375,7 +380,7 @@ declare module "*.svelte" {
 `
       : "";
 
-  return `// bridge(${PKG}) の暫定型宣言。本体が .d.ts を同梱したら削除してよい。
+  return `// bridgey(${PKG}) の暫定型宣言。本体が .d.ts を同梱したら削除してよい。
 declare module "${PKG}" {
   export interface State<T> {
     value: T;
@@ -390,32 +395,32 @@ declare module "${PKG}" {
   export function computed<T>(fn: () => T): Computed<T>;
   export function computed<T>(deps: unknown, fn: (...vals: any[]) => T): Computed<T>;
 
-  export interface BridgeInstance {
-    text(v?: string): string | BridgeInstance;
-    html(v?: string): string | BridgeInstance;
-    val(v?: string): string | BridgeInstance;
-    attr(name: string, v?: string): string | null | BridgeInstance;
-    addClass(c: string): BridgeInstance;
-    removeClass(c?: string): BridgeInstance;
-    on(events: string, handler: (this: Element, e: Event) => void): BridgeInstance;
-    on(events: string, selector: string, handler: (this: Element, e: Event) => void): BridgeInstance;
-    off(events?: string, handler?: (e: Event) => void): BridgeInstance;
-    bindText<T>(st: State<T> | Computed<T>, format?: (v: T) => unknown): BridgeInstance;
-    bindClass<T>(className: string, st: State<T> | Computed<T>, predicate?: (v: T) => boolean): BridgeInstance;
-    bindAttr<T>(name: string, st: State<T> | Computed<T>, format?: (v: T) => unknown): BridgeInstance;
-    bindValue(st: State<string>): BridgeInstance;
-    dispose(): BridgeInstance;
+  export interface BridgeyInstance {
+    text(v?: string): string | BridgeyInstance;
+    html(v?: string): string | BridgeyInstance;
+    val(v?: string): string | BridgeyInstance;
+    attr(name: string, v?: string): string | null | BridgeyInstance;
+    addClass(c: string): BridgeyInstance;
+    removeClass(c?: string): BridgeyInstance;
+    on(events: string, handler: (this: Element, e: Event) => void): BridgeyInstance;
+    on(events: string, selector: string, handler: (this: Element, e: Event) => void): BridgeyInstance;
+    off(events?: string, handler?: (e: Event) => void): BridgeyInstance;
+    bindText<T>(st: State<T> | Computed<T>, format?: (v: T) => unknown): BridgeyInstance;
+    bindClass<T>(className: string, st: State<T> | Computed<T>, predicate?: (v: T) => boolean): BridgeyInstance;
+    bindAttr<T>(name: string, st: State<T> | Computed<T>, format?: (v: T) => unknown): BridgeyInstance;
+    bindValue(st: State<string>): BridgeyInstance;
+    dispose(): BridgeyInstance;
     [key: string]: any;
   }
   export interface Dollar {
-    (selector: unknown): BridgeInstance;
+    (selector: unknown): BridgeyInstance;
     ajax(url: string, options?: Record<string, any>): Promise<any>;
     get(url: string, ...args: any[]): Promise<any>;
     post(url: string, ...args: any[]): Promise<any>;
     [key: string]: any;
   }
   export const $$: Dollar;
-  export class Bridge {}
+  export class Bridgey {}
   export interface MountInstance {
     set(props: Record<string, unknown>): void;
     destroy?(): void;
@@ -439,15 +444,7 @@ ${svelteModule}`;
 
 // ── init コマンド ──────────────────────────────────────────────
 async function init(args) {
-  const dir = args._[1] || "bridge-app";
-  const target = resolve(process.cwd(), dir);
-  const name = basename(dir).replace(/[^\w.-]/g, "-") || "bridge-app";
-  const bridgeDep = args.bridgeDep || "^1.0.0";
-
-  if (existsSync(target) && (await readdir(target)).length > 0) {
-    stdout.write(`✗ ${dir} は空ではありません。別の場所を指定してください。\n`);
-    process.exit(1);
-  }
+  const bridgeyDep = args.bridgeyDep || "^1.0.0";
 
   let framework = args.framework;
   if (framework && !FRAMEWORKS.includes(framework)) {
@@ -460,33 +457,51 @@ async function init(args) {
     process.exit(1);
   }
 
+  let dir = args._[1]; // 位置引数があれば優先(なければ対話で尋ねる)
+
   // 未指定の項目だけ対話で尋ねる。readline は1つだけ作って使い回す。
-  if (!framework || !lang) {
+  if (!dir || !framework || !lang) {
     const rl = createInterface({ input: stdin, output: stdout });
     try {
+      if (!dir)
+        dir = (await rl.question(`\nプロジェクト名(. で現在のフォルダに生成) [bridgey-app]: `)).trim();
       if (!framework) framework = await promptChoice(rl, "フレームワークを選択", FRAMEWORKS);
-      if (!lang) lang = await promptChoice(rl, "言語を選択", LANGUAGES);
+      if (!lang)
+        lang = await promptChoice(rl, "言語を選択", [
+          { value: "js", label: "JavaScript" },
+          { value: "ts", label: "TypeScript" },
+        ]);
     } finally {
       rl.close();
     }
   }
+  if (!dir) dir = "bridgey-app"; // 未指定(空Enter含む)は既定名
 
-  const files = filesFor(framework, lang, name, bridgeDep);
-  await mkdir(target, { recursive: true });
+  // "." は現在のフォルダに直接生成(新規フォルダを作らない)。
+  const useCwd = dir === ".";
+  const target = useCwd ? process.cwd() : resolve(process.cwd(), dir);
+  const name = basename(target).replace(/[^\w.-]/g, "-") || "bridgey-app";
+
+  // 新規フォルダ生成時のみ「空でないと拒否」。"." は既存カレントへ載せるのでスキップ。
+  if (!useCwd && existsSync(target) && (await readdir(target)).length > 0) {
+    stdout.write(`✗ ${dir} は空ではありません。別の場所を指定してください。\n`);
+    process.exit(1);
+  }
+
+  const files = filesFor(framework, lang, name, bridgeyDep);
+  if (!useCwd) await mkdir(target, { recursive: true });
   for (const [rel, content] of Object.entries(files)) {
     await writeFile(join(target, rel), content);
   }
 
-  stdout.write(`\n✓ ${framework} · ${lang} スタータを生成: ${dir}/\n`);
+  stdout.write(`\n✓ ${framework} · ${lang} スタータを生成: ${useCwd ? "現在のフォルダ" : dir + "/"}\n`);
   Object.keys(files).sort().forEach((f) => stdout.write(`    ${f}\n`));
   stdout.write(
     `\n次の手順:\n` +
-      `  cd ${dir}\n` +
+      (useCwd ? "" : `  cd ${dir}\n`) +
       `  npm install\n` +
       `  npm run build      # ${lang === "ts" ? "main.ts" : "main.js"}(+部品) → bundle.js\n` +
-      `  # index.html を静的サーバーで開く (例: npx serve .)\n\n` +
-      `エンジン(${framework})・言語(${lang})はこのプロジェクトの選択です。別の組み合わせを試すなら別プロジェクトを作ってください。\n` +
-      `利用者コード($$ / state / mount)は共通なので、知識はそのまま移せます。\n`
+      `  # index.html を静的サーバーで開く (例: npx serve .)\n`
   );
 }
 
@@ -498,13 +513,13 @@ if (cmd === "init") {
   await init(args);
 } else {
   stdout.write(
-    `bridge — jQueryの書き味で本物のモダンFWを、限りなく楽に\n\n` +
+    `brg — jQueryの書き味で本物のモダンFWを、限りなく楽に\n\n` +
       `使い方:\n` +
-      `  bridge init [dir] [--framework svelte|vue] [--lang js|ts] [--bridge-dep <spec>]\n\n` +
+      `  brg init [dir] [--framework svelte|vue] [--lang js|ts] [--bridgey-dep <spec>]\n\n` +
       `例:\n` +
-      `  bridge init my-app                 # 対話でフレームワーク・言語を選択\n` +
-      `  bridge init my-app -f vue          # Vue(言語は対話)\n` +
-      `  bridge init my-app -f svelte -l ts # Svelte + TypeScript(非対話)\n`
+      `  brg init my-app                 # 対話でフレームワーク・言語を選択\n` +
+      `  brg init my-app -f vue          # Vue(言語は対話)\n` +
+      `  brg init my-app -f svelte -l ts # Svelte + TypeScript(非対話)\n`
   );
   process.exit(cmd ? 1 : 0);
 }

@@ -8,4 +8,7 @@ sample/todoapp/todo.js
 *.tgz
 scratch-*.mjs
 
+# CLI 動作確認で生成されるスキャフォールド(brg init の既定名)
+/bridgey-app/
+
 # dist/ は <script>/CDN 配布物なので追跡する（無視しない）

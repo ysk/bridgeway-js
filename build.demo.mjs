@@ -2,7 +2,7 @@
 //   実行: node build.demo.mjs
 //   各 main.js を rollup でバンドルし、IIFEを出力。
 //
-// これは将来の「npm install bridge → フレームワーク選択」で自動化したい部分の原型。
+// これは将来の「npm install bridgey → フレームワーク選択」で自動化したい部分の原型。
 
 import { rollup } from "rollup";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
