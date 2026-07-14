@@ -48,6 +48,20 @@ const demos = [
     name: "FormDemo",
     plugins: [],
   },
+  {
+    // 実証: $$ と Svelte を同一ページに置いたときの主権境界
+    input: "sample/coexist/main.js",
+    file: "sample/coexist/app.js",
+    name: "CoexistDemo",
+    plugins: [svelte({ emitCss: false, compilerOptions: { dev: false } })],
+  },
+  {
+    // 実証(うま味): レガシー(jQuery)×島(Svelte)を共有stateで橋渡しする移行パターン
+    input: "sample/migrate/main.js",
+    file: "sample/migrate/app.js",
+    name: "MigrateDemo",
+    plugins: [svelte({ emitCss: false, compilerOptions: { dev: false } })],
+  },
 ];
 
 for (const demo of demos) {

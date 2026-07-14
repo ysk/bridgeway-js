@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>移行の継ぎ目 — bridgey</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; line-height: 1.7; }
+    .island { background: #f6f9ff; border: 1px solid #dbe6ff; border-radius: 8px; padding: 8px 16px; margin: 12px 0; }
+    #picked { color: #2b7; font-weight: bold; }
+    input, button { font-size: 15px; padding: 4px 8px; }
+    ul { padding-left: 1.2em; }
+  </style>
+</head>
+<body>
+  <h1>レガシー(jQuery) × 島(Svelte) を state で橋渡し</h1>
+
+  <!-- レガシー領域: 入力は jQuery の手癖のまま -->
+  <p>
+    <input id="q" placeholder="検索語を入力(例: an)" />
+    <button id="clear">クリア</button>
+  </p>
+
+  <!-- 島: 描画は本物の Svelte に丸投げ -->
+  <div id="island"></div>
+
+  <!-- レガシー領域: 島から来たイベントを jQuery で反映 -->
+  <p id="picked">(まだ選択なし)</p>
+
+  <script src="./app.js"></script>
+</body>
+</html>

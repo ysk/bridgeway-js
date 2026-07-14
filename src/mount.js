@@ -12,6 +12,7 @@
 //   app.destroy();                // 購読もDOMもエンジンが自動片付け(④/⑤が消える)
 
 import { engine } from "./engine.js";
+import { registerManagedRoot, unregisterManagedRoot } from "./managed.js";
 
 export function mount(Component, options = {}) {
   const eng = engine();
@@ -25,5 +26,17 @@ export function mount(Component, options = {}) {
       ? document.querySelector(options.target)
       : options.target || document.body;
 
-  return eng.mount(Component, { ...options, target });
+  const handle = eng.mount(Component, { ...options, target });
+
+  // このサブツリーはエンジンの主権下。$$ の相乗り書き換えを警告できるよう登録する。
+  // (destroy 時に解除し、破棄後のノードを誤って管理下扱いしない)
+  registerManagedRoot(target);
+  if (handle && typeof handle.destroy === "function") {
+    const originalDestroy = handle.destroy.bind(handle);
+    handle.destroy = () => {
+      unregisterManagedRoot(target);
+      return originalDestroy();
+    };
+  }
+  return handle;
 }

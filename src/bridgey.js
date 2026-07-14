@@ -15,6 +15,7 @@
 //   ・jQuery共存の島機構(data-bridge-ignore) → 共存はサポートしない方針に伴い撤去
 
 import { engine } from "./engine.js";
+import { findManagingRoot } from "./managed.js";
 
 // -----------------------------------------------------------------------------
 // リアクティブ状態: エンジンのReactiveを、素直な .value で触れる形に包む
@@ -666,6 +667,66 @@ export function $$(selector) {
 // jQueryプラグインの書き味で「自作の」拡張を書く場所。
 // 注意: 既存のjQueryプラグイン(slick等)がそのまま動くわけではない(本物のjQueryに依存するため)。
 $$.fn = Bridgey.prototype;
+
+// -----------------------------------------------------------------------------
+// 相乗りガード: mount() 管理下のノードを $$ で「書き換えよう」としたら警告する。
+//   Svelte/Vue が主権を持つサブツリーへ命令的に書き込むと、再描画で断線して
+//   状態が静かに壊れる(エラーは出ない)。踏んだ瞬間に気づけるよう開発時に警告。
+//   $$.warnOnManagedNodes = false で無効化できる(本番でうるさければ切る)。
+// -----------------------------------------------------------------------------
+$$.warnOnManagedNodes = true;
+
+// 「書き換え」と判定する条件(メソッド名 → 引数を見て mutation か返す述語)。
+// getter/setter 兼用(text/val/attr/css/prop/data 等)は set のときだけ警告する。
+const MUTATORS = {
+  text: (a) => a.length > 0 && a[0] !== undefined,
+  html: (a) => a.length > 0 && a[0] !== undefined,
+  val: (a) => a.length > 0 && a[0] !== undefined,
+  attr: (a) => a.length > 1 || (a[0] && typeof a[0] === "object"),
+  prop: (a) => a.length > 1,
+  css: (a) => a.length > 1 || (a[0] && typeof a[0] === "object"),
+  data: (a) => a.length > 1,
+  addClass: () => true, removeClass: () => true, toggleClass: () => true,
+  removeAttr: () => true,
+  append: () => true, prepend: () => true, before: () => true, after: () => true,
+  empty: () => true, remove: () => true, replaceWith: () => true, detach: () => true,
+  show: () => true, hide: () => true, toggle: () => true,
+  fadeIn: () => true, fadeOut: () => true, fadeToggle: () => true,
+  slideDown: () => true, slideUp: () => true, slideToggle: () => true,
+  bindText: () => true, bindClass: () => true, bindAttr: () => true, bindValue: () => true,
+};
+
+// 同じ(要素×メソッド)で警告を繰り返さないための控えめな抑制。
+const warnedByEl = new WeakMap();
+
+function warnManaged(els, method) {
+  if (!$$.warnOnManagedNodes || typeof console === "undefined") return;
+  for (const el of els) {
+    const root = findManagingRoot(el);
+    if (!root) continue;
+    let seen = warnedByEl.get(el);
+    if (!seen) warnedByEl.set(el, (seen = new Set()));
+    if (seen.has(method)) return; // このノードでは警告済み
+    seen.add(method);
+    console.warn(
+      `[bridgey] $$(...).${method}() が mount() 管理下のノードを書き換えようとしています。\n` +
+        `  このサブツリーは下のフレームワーク(Svelte等)が主権を持つため、$$ で書き込むと\n` +
+        `  再描画で断線し、状態が静かに壊れます(エラーは出ません)。\n` +
+        `  → 命令的に触るノードは mount 対象の外に分けてください。`,
+      el
+    );
+    return;
+  }
+}
+
+for (const [name, isMutation] of Object.entries(MUTATORS)) {
+  const original = Bridgey.prototype[name];
+  if (typeof original !== "function") continue;
+  Bridgey.prototype[name] = function (...args) {
+    if (isMutation(args)) warnManaged(this.els, name);
+    return original.apply(this, args);
+  };
+}
 
 // -----------------------------------------------------------------------------
 // $$.ajax / $$.get / $$.post — fetch の薄いjQuery風ラッパ
