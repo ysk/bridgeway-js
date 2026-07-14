@@ -71,20 +71,30 @@ npm install bridgey
 npm install svelte   # または vue（使う方だけ。optional peer）
 ```
 
-**② `<script>`で読み込む（簡易運用）**
+**② `<script>`で読み込む（CDN・ビルド不要）**
+
+npmに公開済みなので、jsDelivr / unpkg からそのまま読めます。
 
 ```html
 <!-- Vueフルビルド同梱。mount まで全部動く -->
-<script src="dist/bridgey.vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bridgey/dist/bridgey.vue.js"></script>
+<!-- unpkg でも可: https://unpkg.com/bridgey/dist/bridgey.vue.js -->
 <script>
   const App = { data: () => ({ n: 0 }), template: `<button @click="n++">{{ n }}</button>` };
   mount(App, { target: "#app" });   // $$ / state / mount は window に
 </script>
 ```
 
-- `dist/bridgey.vue.js` … Vueフルビルド同梱。ビルド不要で template 文字列の部品を `mount` まで。
-- `dist/bridgey.js` … Svelte(軽量)同梱。`$$ / state / computed` 中心。
-- グローバル版は `npm run build`（`build.mjs`）で `dist/` に生成。npm公開後は `https://cdn.jsdelivr.net/npm/bridgey/dist/bridgey.vue.js` で読めます。
+配信ファイル（`dist/`）:
+
+| ファイル | 内容 | CDN URL |
+| --- | --- | --- |
+| `bridgey.vue.js` | Vueフルビルド同梱。ビルド不要で template 文字列の部品を `mount` まで | `https://cdn.jsdelivr.net/npm/bridgey/dist/bridgey.vue.js` |
+| `bridgey.js` | Svelte(軽量)同梱。`$$ / state / computed` 中心 | `https://cdn.jsdelivr.net/npm/bridgey/dist/bridgey.js` |
+
+> **バージョン固定推奨:** 本番では `bridgey@1`（メジャー固定）や `bridgey@1.0.0`（完全固定）のように指定します。例: `https://cdn.jsdelivr.net/npm/bridgey@1/dist/bridgey.vue.js`
+>
+> ローカルの `dist/` は `npm run build`（`build.mjs`）で再生成できます。
 
 ## 新規プロジェクトを作る（CLI）
 
@@ -135,6 +145,32 @@ svelteEngine   vueEngine（将来）
 - **必須要件:** 書き味はjQueryのまま／裏で本物のモダンFWが動く／学習コストを限りなく下げる
 - **将来:** Svelteに加えVue等へエンジンを差し替え可能に（対話的に選べるように）
 - **背景:** 作者自身がjQuery→Vueの移行でとん挫した。あの頃の自分を救うために、モダンを“楽に”始められる薄い橋を架ける
+
+---
+
+## リリース手順（次のバージョンを publish）
+
+メンテナ向け。`prepack` で `dist/` が自動ビルドされるので、手動ビルドは不要です。
+
+```bash
+# 1) バージョンを上げる（package.json 更新 + git があれば commit+tag）
+npm version patch     # 1.0.0 → 1.0.1（バグ修正）
+npm version minor     # 1.0.0 → 1.1.0（後方互換の機能追加）
+npm version major     # 1.0.0 → 2.0.0（破壊的変更）
+
+# 2) 中身を最終確認（実送信しない。prepack ビルド込み）
+npm publish --dry-run
+
+# 3) 公開
+npm publish
+
+# 4) 確認 & タグを push
+npm view bridgey version          # 新バージョンが出ればOK
+git push --follow-tags            # git を使っている場合
+```
+
+- CDN（jsDelivr / unpkg）は公開後**数分〜十数分で自動反映**されます。即時に固定したい場合は `bridgey@<version>` を指定。
+- 公開前チェックや名前まわりの詳細は [PUBLISHING.md](./PUBLISHING.md) を参照。
 
 ---
 
