@@ -82,18 +82,74 @@ function filesFor(framework, lang, name, bridgeyDep) {
   const isTs = lang === "ts";
   const entry = isTs ? "main.ts" : "main.js";
 
+  const appFile = framework === "svelte" ? "App.svelte" : isTs ? "App.ts" : "App.js";
   const common = {
     "index.html": `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${name} — bridgey (${framework} · ${lang})</title>
+  <title>${name} — bridgey</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(1200px 600px at 50% -10%, #eef2ff, #ffffff 60%);
+      color: #1a1a2e; padding: 24px;
+    }
+    .card {
+      width: min(92vw, 520px); background: #fff; border: 1px solid #e6e8f0;
+      border-radius: 18px; padding: 36px 32px 28px; text-align: center;
+      box-shadow: 0 20px 60px rgba(30, 40, 90, .10);
+    }
+    .logo {
+      width: 72px; height: 72px; margin: 0 auto 18px; border-radius: 20px;
+      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 30px;
+      background: linear-gradient(135deg, #6366f1, #06b6d4);
+      box-shadow: 0 8px 24px rgba(99, 102, 241, .35);
+    }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    .sub { margin: 0 0 22px; color: #7a7f9a; font-size: 14px; line-height: 1.7; }
+    .counter { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 8px 0; }
+    .counter button {
+      width: 40px; height: 40px; border-radius: 10px; border: 1px solid #dfe3f3;
+      background: #f6f7fd; font-size: 20px; cursor: pointer; color: inherit;
+    }
+    .counter button:hover { background: #eceefb; }
+    .counter strong { font-size: 30px; min-width: 2.2em; }
+    .note { color: #7a7f9a; font-size: 13px; margin: 6px 0 0; }
+    .badge { margin: 18px 0 0; font-size: 12px; color: #9aa0bd; }
+    .hint {
+      margin-top: 22px; text-align: left; background: #f7f8fd; border: 1px solid #e6e8f0;
+      border-radius: 12px; padding: 6px 18px; font-size: 13.5px; line-height: 1.9;
+    }
+    code { background: #f1f3fb; padding: 2px 7px; border-radius: 6px; font-size: 13px; }
+    a { color: #6366f1; }
+    @media (prefers-color-scheme: dark) {
+      body { background: radial-gradient(1200px 600px at 50% -10%, #1a1f3a, #0b0d1a 60%); color: #e8e8f0; }
+      .card { background: #12152a; border-color: #262b4a; }
+      .counter button { background: #171b34; border-color: #2b3157; }
+      .counter button:hover { background: #1e2340; }
+      .hint { background: #0e1122; border-color: #262b4a; }
+      code { background: #0e1122; }
+    }
+  </style>
 </head>
 <body>
-  <h1>${name} <small>engine: ${framework} · ${lang}</small></h1>
-  <div id="app"></div>
-  <div><button id="reset">リセット</button> 状態: <span id="log"></span></div>
+  <main class="card">
+    <div class="logo">$$</div>
+    <!-- ようこそページ本体は本物の${framework}が描画します -->
+    <div id="app"></div>
+    <p class="badge">engine: <span id="engine">…</span></p>
+    <div class="hint">
+      <b>次の一歩</b>
+      <div>1. <code>${appFile}</code> を編集して <code>npm run build</code></div>
+      <div>2. 使えるAPI: <code>$$ / state / computed / mount</code></div>
+      <div>3. ドキュメント: <a href="https://bridgey.org" target="_blank" rel="noreferrer">bridgey.org</a></div>
+    </div>
+  </main>
   <script src="./bundle.js"></script>
 </body>
 </html>
@@ -110,7 +166,7 @@ function filesFor(framework, lang, name, bridgeyDep) {
     return {
       ...common,
       "App.svelte": svelteApp(isTs),
-      [entry]: svelteMain(name),
+      [entry]: svelteMain(name, lang),
       "build.mjs": buildMjs("svelte", lang),
       "package.json": pkgJson(name, "svelte", lang, bridgeyDep, { svelte: "^4" }, svelteDevDeps(isTs)),
     };
@@ -120,7 +176,7 @@ function filesFor(framework, lang, name, bridgeyDep) {
   return {
     ...common,
     [isTs ? "App.ts" : "App.js"]: vueApp(isTs),
-    [entry]: vueMain(name, isTs),
+    [entry]: vueMain(name, isTs, lang),
     "build.mjs": buildMjs("vue", lang),
     "package.json": pkgJson(name, "vue", lang, bridgeyDep, { vue: "^3" }, vueDevDeps(isTs)),
   };
@@ -133,86 +189,83 @@ function svelteApp(isTs) {
   return `${open}
   ${nameDecl}
   let count = 0;
-  $: doubled = count * 2;
 </script>
 
-<p>こんにちは {name} — 本物のSvelte。</p>
-<button on:click={() => count--}>−</button>
-<strong>{count}</strong>
-<button on:click={() => count++}>＋</button>
-<span>(2倍: {doubled})</span>
-{#if count >= 10}<p>10以上</p>{/if}
+<h1>bridgey へようこそ 🎉</h1>
+<p class="sub">こんにちは、{name}。<br />jQueryの手に、リアクティビティを。</p>
+
+<!-- ＋/− で state を変えるだけ。画面は自動で追従します（本物のSvelte）。 -->
+<div class="counter">
+  <button on:click={() => count--} aria-label="decrement">−</button>
+  <strong>{count}</strong>
+  <button on:click={() => count++} aria-label="increment">＋</button>
+</div>
+<p class="note">＋ / − で増減。変えるだけで反映されます（2倍: {count * 2}）。</p>
 `;
 }
 
-function svelteMain(name) {
+function svelteMain(name, lang) {
   // 型は bridgey-env.d.ts(ts時)から効く。main の中身は js/ts で共通。
-  return `// bridge本体はエンジン非依存。起動時に一度だけエンジンを選ぶ。
-import { $$, state, mount, useEngine } from "${PKG}";
+  return `// bridgey本体はエンジン非依存。起動時に一度だけエンジンを選ぶ。
+import { $$, mount, useEngine } from "${PKG}";
 import { svelteEngine } from "${PKG}/engines/svelte.js";
 import App from "./App.svelte";
 
 useEngine(svelteEngine);
 
-const app = mount(App, { target: "#app", props: { name: "${name}" } });
+// ようこそページ(App)を載せる。描画・後片付けはSvelteが担当。
+mount(App, { target: "#app", props: { name: "${name}" } });
 
-const log = state("mounted");
-$$("#log").bindText(log);
-$$("#reset").on("click", () => { app.set({ name: "world" }); log.value = "reset"; });
+// jQueryの書き味($$)も同じ場所で使える(ここではエンジン名を表示)。
+$$("#engine").text("svelte · ${lang}");
 `;
 }
 
 // ── Vue 部品 ───────────────────────────────────────────────────
 function vueApp(isTs) {
+  const welcomeTemplate = `\`
+    <h1>bridgey へようこそ 🎉</h1>
+    <p class="sub">こんにちは、{{ name }}。<br />jQueryの手に、リアクティビティを。</p>
+    <div class="counter">
+      <button @click="count--" aria-label="decrement">−</button>
+      <strong>{{ count }}</strong>
+      <button @click="count++" aria-label="increment">＋</button>
+    </div>
+    <p class="note">＋ / − で増減。変えるだけで反映されます（2倍: {{ count * 2 }}）。</p>
+  \``;
   if (isTs) {
     return `import { defineComponent } from "vue";
 
 export default defineComponent({
   props: { name: { type: String, default: "world" } },
   data: () => ({ count: 0 }),
-  computed: { doubled(): number { return this.count * 2; } },
-  template: \`
-    <p>こんにちは {{ name }} — 本物のVue。</p>
-    <button @click="count--">−</button>
-    <strong>{{ count }}</strong>
-    <button @click="count++">＋</button>
-    <span>(2倍: {{ doubled }})</span>
-    <p v-if="count >= 10">10以上</p>
-  \`,
+  template: ${welcomeTemplate},
 });
 `;
   }
   return `export default {
   props: { name: { type: String, default: "world" } },
   data: () => ({ count: 0 }),
-  computed: { doubled() { return this.count * 2; } },
-  template: \`
-    <p>こんにちは {{ name }} — 本物のVue。</p>
-    <button @click="count--">−</button>
-    <strong>{{ count }}</strong>
-    <button @click="count++">＋</button>
-    <span>(2倍: {{ doubled }})</span>
-    <p v-if="count >= 10">10以上</p>
-  \`,
+  template: ${welcomeTemplate},
 };
 `;
 }
 
-function vueMain(name, isTs) {
+function vueMain(name, isTs, lang) {
   const appImport = isTs ? "./App" : "./App.js"; // ts は拡張子なしで App.ts を解決
   return `// Vueを選んだので、useEngine(vueEngine) を一度だけ呼ぶ。
-// これ以降の $$/state/mount はSvelte版と同じ書き味。
-import { $$, state, mount, useEngine } from "${PKG}";
+// これ以降の $$/mount はSvelte版と同じ書き味。
+import { $$, mount, useEngine } from "${PKG}";
 import { vueEngine } from "${PKG}/engines/vue.js";
 import App from "${appImport}";
 
 useEngine(vueEngine);
 
-const app = mount(App, { target: "#app", props: { name: "${name}" } });
+// ようこそページ(App)を載せる。描画・後片付けはVueが担当。
+mount(App, { target: "#app", props: { name: "${name}" } });
 
-const log = state("mounted");
-$$("#log").bindText(log);
-$$("#reset").on("click", () => { app.set({ name: "world" }); log.value = "reset"; });
+// jQueryの書き味($$)も同じ場所で使える(ここではエンジン名を表示)。
+$$("#engine").text("vue · ${lang}");
 `;
 }
 
@@ -501,7 +554,7 @@ async function init(args) {
       (useCwd ? "" : `  cd ${dir}\n`) +
       `  npm install\n` +
       `  npm run build      # ${lang === "ts" ? "main.ts" : "main.js"}(+部品) → bundle.js\n` +
-      `  # index.html を静的サーバーで開く (例: npx serve .)\n`
+      `  npx serve .        # index.html を開くと「ようこそページ」が表示されます\n`
   );
 }
 

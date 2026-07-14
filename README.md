@@ -98,7 +98,9 @@ npmに公開済みなので、jsDelivr / unpkg からそのまま読めます。
 
 ## 新規プロジェクトを作る（CLI）
 
-`brg init` が、選んだフレームワーク・言語に**配線済みのスタータ**を生成します。
+`brg init` が、選んだフレームワーク・言語に**配線済みのスタータ**を生成します。生成後 `npm install && npm run build && npx serve .` で開くと、リアクティビティを実演する**ようこそページ**が表示されます。
+
+> **`brg` が見つからない場合:** ローカル導入（`npm install bridgey`）では bin は PATH に載りません。**`npx brg init`** で実行するか、`npm i -g bridgey` でグローバル導入してください。
 
 ```bash
 npx brg init my-app
